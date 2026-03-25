@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduTrack | Учёт успеваемости</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f4f4f5;
+            color: #18181b;
+            line-height: 1.5;
+        }
+
+        .app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: #18181b;
+            margin-bottom: 0.25rem;
+        }
+
+        .header p {
+            font-size: 0.875rem;
+            color: #71717a;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e4e4e7;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #f0f0f0;
+            background: #ffffff;
+        }
+
+        .card-header h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #3b3b3f;
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .upload-area {
+            border: 1px dashed #d4d4d8;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            background: #fafafa;
+            transition: all 0.2s;
+        }
+
+        .upload-area:hover {
+            border-color: #18181b;
+            background: #ffffff;
+        }
+
+        .upload-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #18181b;
+            color: white;
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+        }
+
+        .upload-label:hover {
+            background: #3b3b3f;
+        }
+
+        .search-box {
+            margin-bottom: 1.25rem;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.625rem 1rem;
+            border: 1px solid #e4e4e7;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            outline: none;
+            transition: all 0.2s;
+            background: #ffffff;
+        }
+
+        .search-box input:focus {
+            border-color: #18181b;
+            box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.1);
+        }
+
+        .student-list {
+            max-height: 360px;
+            overflow-y: auto;
+        }
+
+        .student-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 0.25rem;
+        }
+
+        .student-item:hover {
+            background: #f4f4f5;
+        }
+
+        .student-item.active {
+            background: #f0f0f0;
+            border-left: 3px solid #18181b;
+        }
+
+        .student-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #18181b;
+        }
+
+        .student-group {
+            font-size: 0.75rem;
+            color: #71717a;
+            margin-left: 0.5rem;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #a1a1aa;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.15s;
+            opacity: 0;
+        }
+
+        .student-item:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .delete-btn:hover {
+            color: #e11d48;
+            background: #fef2f2;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .info-row {
+            display: flex;
+            padding: 0.625rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-label {
+            width: 110px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .info-value {
+            flex: 1;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #18181b;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 0.75rem;
+            color: #71717a;
+        }
+
+        .progress-bar-bg {
+            background: #e4e4e7;
+            border-radius: 100px;
+            height: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: #18181b;
+            height: 100%;
+            border-radius: 100px;
+            transition: width 0.4s ease;
+        }
+
+        .credits-info {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #52525b;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: #18181b;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3b3b3f;
+        }
+
+        .btn-secondary {
+            background: #f4f4f5;
+            color: #3b3b3f;
+            border: 1px solid #e4e4e7;
+        }
+
+        .btn-secondary:hover {
+            background: #e4e4e7;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8125rem;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 0.625rem 0.5rem;
+            font-weight: 500;
+            color: #71717a;
+            border-bottom: 1px solid #e4e4e7;
+        }
+
+        .data-table td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid #f0f0f0;
+            color: #3b3b3f;
+        }
+
+        .data-table tr:hover td {
+            background: #fafafa;
+        }
+
+        .deadline-date {
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #a1a1aa;
+            font-size: 0.8125rem;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 12px;
+            background: #18181b;
+            color: white;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation: slideUp 0.2s ease;
+        }
+
+        .notification.success {
+            background: #18181b;
+        }
+
+        .notification.error {
+            background: #e11d48;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            font-size: 0.6875rem;
+            color: #a1a1aa;
+            border-top: 1px solid #e4e4e7;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="container">
+            <div class="header">
+                <h1>EduTrack</h1>
+                <p>Управление переаттестацией и индивидуальными планами</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>Импорт данных</h3>
+                </div>
+                <div class="card-body">
+                    <div class="upload-area">
+                        <div style="margin-bottom: 0.75rem; font-size: 0.875rem; color: #52525b;">📄 Загрузите индивидуальный учебный план</div>
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none;">
+                        <label for="excelFile" class="upload-label">Выбрать файл</label>
+                        <div id="fileName" style="margin-top: 0.75rem; font-size: 0.75rem; color: #a1a1aa;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>Студенты</h3>
+                </div>
+                <div class="card-body">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Поиск по фамилии или группе" onkeyup="filterStudents()">
+                    </div>
+                    <div class="student-list" id="studentList">
+                        <div class="empty-state">Загрузка...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dashboardContainer" style="display:none;">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Личные данные</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="studentInfo"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Прогресс</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="progressInfo"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Управление</h3>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-primary" onclick="createPlan()">Сформировать план</button>
+                            <button class="btn btn-secondary" onclick="refreshDashboard()" style="margin-left: 0.5rem;">Обновить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Академические задолженности</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="debtsList"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Переаттестовано / перезачтено</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="attestedList"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Индивидуальный план переаттестации</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="deadlinesList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                EduTrack — система учёта успеваемости
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        let currentStudentId = null;
+        let allStudents = [];
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value).replace(/[&<>"']/g, (char) => {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
+                return map[char] || char;
+            });
+        }
+
+        function safeText(value, fallback = '—') {
+            if (value === null || value === undefined || value === '') return fallback;
+            return escapeHtml(value);
+        }
+
+        function safeArray(value) {
+            return Array.isArray(value) ? value : [];
+        }
+
+        function safeNumber(value, fallback = 0) {
+            const num = Number(value);
+            return Number.isFinite(num) ? num : fallback;
+        }
+
+        function formatDate(value) {
+            if (!value) return 'не указан';
+            try {
+                return new Date(value).toLocaleDateString('ru-RU');
+            } catch (e) {
+                return 'не указан';
+            }
+        }
+
+        async function readJsonSafe(response) {
+            const text = await response.text();
+            try {
+                return text ? JSON.parse(text) : null;
+            } catch {
+                return text;
+            }
+        }
+
+        function normalizeStudent(student) {
+            return {
+                id: student?.id ?? null,
+                full_name: student?.full_name ?? student?.name ?? 'Без имени',
+                group_name: student?.group_name ?? student?.group ?? 'Без группы',
+                course: student?.course ?? null,
+                program_name: student?.program_name ?? student?.program ?? '',
+                specialization: student?.specialization ?? '',
+                student_card_number: student?.student_card_number ?? '',
+                status: student?.status ?? ''
+            };
+        }
+
+        function normalizeStudentsPayload(payload) {
+            if (Array.isArray(payload)) {
+                return payload.map(normalizeStudent).filter(s => s.id !== null);
+            }
+
+            if (payload && Array.isArray(payload.students)) {
+                return payload.students.map(normalizeStudent).filter(s => s.id !== null);
+            }
+
+            return [];
+        }
+
+        async function loadStudents(selectedId = null) {
+            const listElement = document.getElementById('studentList');
+            listElement.innerHTML = '<div class="empty-state">Загрузка...</div>';
+
+            try {
+                const response = await fetch(`${API_URL}/students`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const payload = await readJsonSafe(response);
+
+                if (!response.ok) {
+                    console.error('Ошибка /students:', payload);
+                    throw new Error(`Ошибка загрузки студентов (${response.status})`);
+                }
+
+                allStudents = normalizeStudentsPayload(payload);
+
+                if (selectedId !== null && selectedId !== undefined) {
+                    currentStudentId = selectedId;
+                }
+
+                renderStudentList();
+
+                if (currentStudentId) {
+                    const exists = allStudents.some(student => student.id === currentStudentId);
+                    if (exists) {
+                        await loadDashboard();
+                    } else {
+                        currentStudentId = null;
+                        document.getElementById('dashboardContainer').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                listElement.innerHTML = '<div class="empty-state">Не удалось загрузить студентов</div>';
+                showNotification('Не удалось загрузить студентов', 'error');
+            }
+        }
+
+        function renderStudentList() {
+            const container = document.getElementById('studentList');
+            const searchTerm = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+            const filtered = allStudents.filter(student => {
+                const fullName = String(student.full_name || '').toLowerCase();
+                const groupName = String(student.group_name || '').toLowerCase();
+                return fullName.includes(searchTerm) || groupName.includes(searchTerm);
+            });
+
+            if (!filtered.length) {
+                container.innerHTML = '<div class="empty-state">Нет записей</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(student => `
+                <div class="student-item ${currentStudentId === student.id ? 'active' : ''}" onclick="selectStudent(${student.id})">
+                    <div>
+                        <span class="student-name">${safeText(student.full_name, 'Без имени')}</span>
+                        <span class="student-group">${safeText(student.group_name, 'Без группы')}</span>
+                    </div>
+                    <button class="delete-btn" onclick="deleteStudent(event, ${student.id})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function filterStudents() {
+            renderStudentList();
+        }
+
+        function selectStudent(studentId) {
+            currentStudentId = studentId;
+            renderStudentList();
+            loadDashboard();
+        }
+
+        async function deleteStudent(event, studentId) {
+            event.stopPropagation();
+
+            if (!confirm('Удалить данные студента?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/students/${studentId}`, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const payload = await readJsonSafe(response);
+
+                if (!response.ok) {
+                    console.error('Ошибка удаления:', payload);
+                    throw new Error(payload?.detail || 'Ошибка удаления');
+                }
+
+                if (currentStudentId === studentId) {
+                    currentStudentId = null;
+                    document.getElementById('dashboardContainer').style.display = 'none';
+                }
+
+                showNotification('Студент удалён');
+                await loadStudents();
+            } catch (error) {
+                console.error('Error deleting student:', error);
+                showNotification(error.message || 'Ошибка удаления', 'error');
+            }
+        }
+
+        function normalizeDashboardPayload(data) {
+            return {
+                student: data?.student || {},
+                progress: data?.progress || {},
+                all_debts: safeArray(data?.all_debts || data?.active_debts),
+                attested_items: safeArray(data?.attested_items || data?.attestations),
+                plan_items: safeArray(data?.plan_items || data?.individual_plan || data?.deadlines)
+            };
+        }
+
+        async function loadDashboard() {
+            if (!currentStudentId) return;
+
+            try {
+                const response = await fetch(`${API_URL}/students/${currentStudentId}/dashboard`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const payload = await readJsonSafe(response);
+
+                if (!response.ok) {
+                    console.error('Ошибка /dashboard:', payload);
+                    throw new Error(payload?.detail || `Ошибка загрузки данных (${response.status})`);
+                }
+
+                const data = normalizeDashboardPayload(payload);
+                const student = data.student;
+                const progress = data.progress;
+                const debts = data.all_debts;
+                const attested = data.attested_items;
+                const planItems = data.plan_items;
+
+                document.getElementById('dashboardContainer').style.display = 'block';
+
+                document.getElementById('studentInfo').innerHTML = `
+                    <div class="info-row">
+                        <div class="info-label">ФИО</div>
+                        <div class="info-value">${safeText(student.full_name)}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Группа</div>
+                        <div class="info-value">${safeText(student.group_name)}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Курс</div>
+                        <div class="info-value">${student.course ?? '—'}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Направление</div>
+                        <div class="info-value">${safeText(student.program_name)}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Профиль</div>
+                        <div class="info-value">${safeText(student.specialization)}</div>
+                    </div>
+                `;
+
+                const totalCredits = safeNumber(progress.total_credits, 0);
+                const completedCredits = safeNumber(progress.completed_credits, 0);
+                const percent = totalCredits > 0 ? (completedCredits / totalCredits) * 100 : 0;
+
+                document.getElementById('progressInfo').innerHTML = `
+                    <div class="progress-stats">
+                        <span>Освоено</span>
+                        <span>${completedCredits} из ${totalCredits} ЗЕ</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-fill" style="width: ${Math.min(percent, 100)}%"></div>
+                    </div>
+                    <div class="credits-info">
+                        <span>1 ЗЕ = 36 ак. часов</span>
+                        <span>${percent.toFixed(0)}%</span>
+                    </div>
+                `;
+
+                if (!debts.length) {
+                    document.getElementById('debtsList').innerHTML =
+                        '<div class="empty-state">Задолженности отсутствуют</div>';
+                } else {
+                    document.getElementById('debtsList').innerHTML = `
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Дисциплина</th>
+                                    <th>ЗЕ</th>
+                                    <th>Часы</th>
+                                    <th>Срок</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${debts.map(item => `
+                                    <tr>
+                                        <td>${safeText(item.discipline_name)}</td>
+                                        <td>${item.credits_remaining ?? item.credits ?? '—'}</td>
+                                        <td>${item.hours_remaining ?? item.hours ?? '—'}</td>
+                                        <td class="deadline-date">${formatDate(item.deadline)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                if (!attested.length) {
+                    document.getElementById('attestedList').innerHTML =
+                        '<div class="empty-state">Нет данных по переаттестации</div>';
+                } else {
+                    document.getElementById('attestedList').innerHTML = `
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Дисциплина</th>
+                                    <th>Форма контроля</th>
+                                    <th>Результат</th>
+                                    <th>Тип</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${attested.map(item => `
+                                    <tr>
+                                        <td>${safeText(item.discipline_name)}</td>
+                                        <td>${safeText(item.control_form)}</td>
+                                        <td>${safeText(item.result)}</td>
+                                        <td>${safeText(item.attestation_type)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                if (!planItems.length) {
+                    document.getElementById('deadlinesList').innerHTML =
+                        '<div class="empty-state">План не сформирован</div>';
+                } else {
+                    document.getElementById('deadlinesList').innerHTML = `
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Дисциплина</th>
+                                    <th>Форма контроля</th>
+                                    <th>ЗЕ</th>
+                                    <th>Срок</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${planItems.map(item => `
+                                    <tr>
+                                        <td>${safeText(item.discipline_name)}</td>
+                                        <td>${safeText(item.control_form)}</td>
+                                        <td>${item.credits ?? '—'}</td>
+                                        <td class="deadline-date">${formatDate(item.deadline)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                showNotification(error.message || 'Ошибка загрузки данных студента', 'error');
+            }
+        }
+
+        async function createPlan() {
+            if (!currentStudentId) {
+                showNotification('Выберите студента', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/students/${currentStudentId}/create-plan`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ academic_year: '2025-2026' })
+                });
+
+                const payload = await readJsonSafe(response);
+
+                if (!response.ok) {
+                    console.error('Ошибка create-plan:', payload);
+                    throw new Error(payload?.detail || payload?.message || 'Ошибка формирования плана');
+                }
+
+                showNotification(payload?.message || 'План сформирован');
+                await loadDashboard();
+            } catch (error) {
+                console.error('Error creating plan:', error);
+                showNotification(error.message || 'Ошибка формирования плана', 'error');
+            }
+        }
+
+        function refreshDashboard() {
+            if (!currentStudentId) {
+                showNotification('Выберите студента', 'error');
+                return;
+            }
+            loadDashboard();
+            showNotification('Данные обновлены');
+        }
+
+        document.getElementById('excelFile').addEventListener('change', async function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileName').textContent = file.name;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showNotification('Импорт...', 'success');
+
+                const response = await fetch(`${API_URL}/upload-excel`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const payload = await readJsonSafe(response);
+
+                if (!response.ok) {
+                    console.error('Ошибка upload-excel:', payload);
+                    throw new Error(payload?.detail || payload?.message || 'Ошибка импорта');
+                }
+
+                const uploadedStudentId = payload?.student_id ?? null;
+
+                showNotification(payload?.message || 'Импорт выполнен');
+
+                await loadStudents(uploadedStudentId);
+
+                if (uploadedStudentId) {
+                    currentStudentId = uploadedStudentId;
+                    await loadDashboard();
+                }
+
+                e.target.value = '';
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                showNotification(error.message || 'Ошибка соединения', 'error');
+            }
+        });
+
+        loadStudents();
+    </script>
+</body>
+</html>
