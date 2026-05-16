@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -22,6 +22,9 @@ class Student(Base):
 
 class Debt(Base):
     __tablename__ = "debts"
+    __table_args__ = (
+        UniqueConstraint("student_id", "discipline_name", name="uq_debt_student_discipline"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
@@ -37,6 +40,9 @@ class Debt(Base):
 
 class AttestationItem(Base):
     __tablename__ = "attestation_items"
+    __table_args__ = (
+        UniqueConstraint("student_id", "discipline_name", name="uq_attestation_student_discipline"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
@@ -51,10 +57,13 @@ class AttestationItem(Base):
 
 class IndividualPlanItem(Base):
     __tablename__ = "individual_plan_items"
+    __table_args__ = (
+        UniqueConstraint("student_id", "discipline_name", name="uq_plan_student_discipline"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
-    debt_id = Column(Integer, ForeignKey("debts.id", ondelete="CASCADE"), nullable=True)
+    debt_id = Column(Integer, ForeignKey("debts.id", ondelete="SET NULL"), nullable=True)
     discipline_name = Column(String, nullable=False)
     hours = Column(Integer, nullable=True)
     credits = Column(Integer, nullable=True)

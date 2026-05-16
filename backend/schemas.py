@@ -1,42 +1,101 @@
-from pydantic import BaseModel
-from datetime import datetime, date
+from __future__ import annotations
+
+from datetime import date
 from typing import Optional
 
-class StudentBase(BaseModel):
+from pydantic import BaseModel
+
+
+# ─── Student ────────────────────────────────────────────────────────────────
+
+class StudentResponse(BaseModel):
+    id: int
     full_name: str
     student_card_number: Optional[str] = None
-    group_name: str
+    group_name: Optional[str] = None
+    course: Optional[int] = None
+    program_name: Optional[str] = None
+    specialization: Optional[str] = None
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class StudentCreate(BaseModel):
+    full_name: str
+    student_card_number: str
+    group_name: Optional[str] = None
     course: Optional[int] = None
     program_name: Optional[str] = None
     specialization: Optional[str] = None
 
-class StudentCreate(StudentBase):
-    pass
 
-class Student(StudentBase):
+# ─── Plan items ─────────────────────────────────────────────────────────────
+
+class PlanItemSummary(BaseModel):
+    """Compact representation used inside DashboardResponse."""
     id: int
-    status: str
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class DebtBase(BaseModel):
     discipline_name: str
-    semester_origin: Optional[int] = None
-    hours_remaining: Optional[int] = None
-    credits_remaining: Optional[float] = None
-    reassessment_deadline: Optional[date] = None
+    hours: Optional[int] = None
+    credits: Optional[int] = None
+    control_form: Optional[str] = None
+    deadline: Optional[date] = None
 
-class DebtCreate(DebtBase):
+
+class PlanItemResponse(PlanItemSummary):
+    """Full representation returned by PATCH /plan-items/{id}."""
     student_id: int
-    discipline_id: Optional[int] = None
+    debt_id: Optional[int] = None
 
-class Debt(DebtBase):
+    model_config = {"from_attributes": True}
+
+
+class PlanItemUpdate(BaseModel):
+    discipline_name: Optional[str] = None
+    control_form: Optional[str] = None
+    credits: Optional[int] = None
+    hours: Optional[int] = None
+    deadline: Optional[date] = None
+
+
+# ─── Dashboard sub-objects ───────────────────────────────────────────────────
+
+class DebtResponse(BaseModel):
     id: int
-    student_id: int
+    discipline_name: str
+    hours_remaining: Optional[int] = None
+    credits_remaining: Optional[int] = None
+    deadline: Optional[date] = None
     status: str
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+
+
+class AttestationItemResponse(BaseModel):
+    id: int
+    discipline_name: str
+    credits: Optional[int] = None
+    control_form: Optional[str] = None
+    result: Optional[str] = None
+    attestation_type: Optional[str] = None
+
+
+class ProgressResponse(BaseModel):
+    total_credits: float
+    completed_credits: float
+
+
+class DashboardResponse(BaseModel):
+    student: StudentResponse
+    progress: ProgressResponse
+    all_debts: list[DebtResponse]
+    attested_items: list[AttestationItemResponse]
+    plan_items: list[PlanItemSummary]
+
+
+# ─── Upload ──────────────────────────────────────────────────────────────────
+
+class UploadResponse(BaseModel):
+    message: str
+    student_id: int
+    disciplines_loaded: int
+    debts_loaded: int
+    plan_items_loaded: int

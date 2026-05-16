@@ -1,151 +1,156 @@
-import os
-import openpyxl
-from datetime import date
+from __future__ import annotations
 
+import os
+import re
+from functools import cached_property
+from typing import Optional
+
+import openpyxl
+from sqlalchemy.orm import Session
+
+import models
+
+# ─── Constants ───────────────────────────────────────────────────────────────
+
+_UNKNOWN = "Не указано"
+
+# Filename convention: 028_Фамилия_Имя_Отчество_141а_ПИо_...
+_IDX_CARD   = 0
+_IDX_LAST   = 1
+_IDX_FIRST  = 2
+_IDX_MIDDLE = 3
+_IDX_GROUP  = 4
+_IDX_CODE   = 5
+
+# Cell addresses in the "Титул" sheet
+_CELL_FULL_NAME      = "H27"
+_CELL_PROGRAM        = "D29"
+_CELL_SPECIALIZATION = "D30"
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _to_int(value) -> int:
+    """Convert a cell value (string, float, int, or None) to int, defaulting to 0."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+# ─── Parser ──────────────────────────────────────────────────────────────────
 
 class ExcelParser:
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self.workbook = openpyxl.load_workbook(file_path, data_only=True)
 
-    def _clean(self, value):
+    # ── Internal helpers ────────────────────────────────────────────────────
+
+    def _clean(self, value) -> str:
         if value is None:
             return ""
         return str(value).replace("\r", "").strip()
 
-    def _get_filename_parts(self):
-        filename = os.path.basename(self.file_path)
-        name = os.path.splitext(filename)[0]
-        return name.split("_")
+    @cached_property
+    def _filename_parts(self) -> list[str]:
+        stem = os.path.splitext(os.path.basename(self.file_path))[0]
+        return stem.split("_")
 
-    def _get_student_card_from_filename(self):
-        parts = self._get_filename_parts()
-        if parts and parts[0].isdigit():
-            return parts[0]
+    def _student_card(self) -> str:
+        parts = self._filename_parts
+        if parts and parts[_IDX_CARD].isdigit():
+            return parts[_IDX_CARD]
         return str(abs(hash(os.path.basename(self.file_path))))[:8]
 
-    def _get_group_from_filename(self):
-        parts = self._get_filename_parts()
-        # 028_Марденгский_Кирилл_Александрович_141а_ПИо_...
-        if len(parts) >= 6:
-            return f"{parts[4]}-{parts[5]}"
-        if len(parts) >= 5:
-            return parts[4]
-        return "Не указана"
+    def _group_name(self) -> str:
+        parts = self._filename_parts
+        if len(parts) > _IDX_CODE:
+            return f"{parts[_IDX_GROUP]}-{parts[_IDX_CODE]}"
+        if len(parts) > _IDX_GROUP:
+            return parts[_IDX_GROUP]
+        return _UNKNOWN
 
-    def _get_full_name_from_filename(self):
-        parts = self._get_filename_parts()
-        if len(parts) >= 4:
-            return f"{parts[1]} {parts[2]} {parts[3]}"
+    def _full_name_from_filename(self) -> str:
+        parts = self._filename_parts
+        if len(parts) > _IDX_MIDDLE:
+            return f"{parts[_IDX_LAST]} {parts[_IDX_FIRST]} {parts[_IDX_MIDDLE]}"
         return "Неизвестный студент"
 
-    def parse_student_info(self):
+    def _course_from_filename(self) -> Optional[int]:
+        parts = self._filename_parts
+        group = parts[_IDX_GROUP] if len(parts) > _IDX_GROUP else ""
+        m = re.match(r"(\d)", group)
+        return int(m.group(1)) if m else None
+
+    # ── Public parse methods ─────────────────────────────────────────────────
+
+    def parse_student_info(self) -> dict:
         sheet = self.workbook["Титул"] if "Титул" in self.workbook.sheetnames else self.workbook.active
 
-        full_name = ""
-
-        # 1. Основной вариант: H27
-        try:
-            raw_name = sheet["H27"].value
-            full_name = self._clean(raw_name)
-            if full_name:
-                lines = [line.strip() for line in full_name.split("\n") if line.strip()]
-                if lines:
-                    full_name = lines[-1]
-        except Exception:
-            full_name = ""
-
-        # 2. Запасной вариант: если в Excel не нашли — берём из имени файла
+        full_name = self._clean(sheet[_CELL_FULL_NAME].value)
+        if full_name:
+            lines = [ln.strip() for ln in full_name.split("\n") if ln.strip()]
+            full_name = lines[-1] if lines else full_name
         if not full_name:
-            full_name = self._get_full_name_from_filename()
+            full_name = self._full_name_from_filename()
 
-        group_name = self._get_group_from_filename()
+        program_name = self._clean(sheet[_CELL_PROGRAM].value)
+        if program_name and " " in program_name:
+            program_name = program_name.split(" ", 1)[1].strip()
 
-        # Направление
-        program_name = ""
-        try:
-            raw_program = sheet["D29"].value
-            program_name = self._clean(raw_program)
-            if program_name and " " in program_name:
-                parts = program_name.split(" ", 1)
-                if len(parts) == 2:
-                    program_name = parts[1].strip()
-        except Exception:
-            program_name = ""
+        specialization = self._clean(sheet[_CELL_SPECIALIZATION].value)
 
-        if not program_name:
-            program_name = "Не указано"
-
-        # Профиль
-        specialization = ""
-        try:
-            raw_specialization = sheet["D30"].value
-            specialization = self._clean(raw_specialization)
-        except Exception:
-            specialization = ""
-
-        if not specialization:
-            specialization = "Не указано"
-
-        student_info = {
+        return {
             "full_name": full_name,
-            "student_card_number": self._get_student_card_from_filename(),
-            "group_name": group_name,
-            "course": 4,
-            "program_name": program_name,
-            "specialization": specialization,
+            "student_card_number": self._student_card(),
+            "group_name": self._group_name(),
+            "course": self._course_from_filename(),
+            "program_name": program_name or _UNKNOWN,
+            "specialization": specialization or _UNKNOWN,
         }
 
-        print("PARSED STUDENT INFO:", student_info)
-        return student_info
-
-    def parse_attested_items(self):
+    def parse_attested_items(self) -> list[dict]:
         if "Переаттестация" not in self.workbook.sheetnames:
             return []
 
         sheet = self.workbook["Переаттестация"]
-        items = []
-        current_name = None
+        seen: dict[str, dict] = {}
+        current_name = ""
 
         for row in range(4, sheet.max_row + 1):
             name_val = sheet.cell(row=row, column=2).value
-            credits_val = sheet.cell(row=row, column=7).value
-            control_form = sheet.cell(row=row, column=9).value
-            attestation_type = sheet.cell(row=row, column=10).value
-            result_val = sheet.cell(row=row, column=11).value
-
             if name_val:
                 current_name = self._clean(name_val)
-
             if not current_name:
                 continue
 
-            if not attestation_type and not result_val and not control_form:
+            control_form     = sheet.cell(row=row, column=9).value
+            attestation_type = sheet.cell(row=row, column=10).value
+            result_val       = sheet.cell(row=row, column=11).value
+
+            if not (attestation_type or result_val or control_form):
                 continue
 
-            items.append({
+            seen[current_name] = {
                 "discipline_name": current_name,
-                "credits": int(float(credits_val)) if credits_val else 0,
-                "control_form": self._clean(control_form) or "Не указано",
-                "result": self._clean(result_val) or "Не указано",
-                "attestation_type": self._clean(attestation_type) or "Не указано",
-            })
+                "credits": _to_int(sheet.cell(row=row, column=7).value),
+                "control_form": self._clean(control_form) or _UNKNOWN,
+                "result": self._clean(result_val) or _UNKNOWN,
+                "attestation_type": self._clean(attestation_type) or _UNKNOWN,
+            }
 
-        return items
+        return list(seen.values())
 
-    def parse_plan_items(self):
+    def parse_plan_items(self) -> list[dict]:
         if "План" not in self.workbook.sheetnames:
             return []
 
         sheet = self.workbook["План"]
-        items = []
+        seen: dict[str, dict] = {}
 
         for row in range(6, sheet.max_row + 1):
-            name_val = sheet.cell(row=row, column=3).value
-            if not name_val:
-                continue
-
-            name = self._clean(name_val)
+            name = self._clean(sheet.cell(row=row, column=3).value)
             if not name:
                 continue
 
@@ -153,191 +158,138 @@ class ExcelParser:
             if lowered.startswith("модуль") or "блок" in lowered or "часть" in lowered:
                 continue
 
-            exam = sheet.cell(row=row, column=4).value
-            credit = sheet.cell(row=row, column=5).value
+            exam             = sheet.cell(row=row, column=4).value
+            credit           = sheet.cell(row=row, column=5).value
             credit_with_mark = sheet.cell(row=row, column=6).value
-            course_work = sheet.cell(row=row, column=7).value
+            course_work      = sheet.cell(row=row, column=7).value
 
-            credits_val = sheet.cell(row=row, column=8).value
-            hours_val = sheet.cell(row=row, column=9).value
+            if exam:             control_form = "Экзамен"
+            elif credit:         control_form = "Зачет"
+            elif credit_with_mark: control_form = "Зачет с оценкой"
+            elif course_work:    control_form = "Курсовая работа"
+            else:                control_form = _UNKNOWN
 
-            credits = int(float(credits_val)) if credits_val else 0
-            hours = int(float(hours_val)) if hours_val else 0
-
-            control_form = "Не указано"
-            if exam:
-                control_form = "Экзамен"
-            elif credit:
-                control_form = "Зачет"
-            elif credit_with_mark:
-                control_form = "Зачет с оценкой"
-            elif course_work:
-                control_form = "Курсовая работа"
-
-            items.append({
+            seen[name] = {
                 "discipline_name": name,
-                "hours": hours,
-                "credits": credits,
+                "credits": _to_int(sheet.cell(row=row, column=8).value),
+                "hours": _to_int(sheet.cell(row=row, column=9).value),
                 "control_form": control_form,
-            })
+            }
 
-        return items
+        return list(seen.values())
 
-    def parse_debts(self):
-        plan_items = self.parse_plan_items()
-        attested_items = self.parse_attested_items()
+    def parse_debts(
+        self,
+        plan_items: Optional[list[dict]] = None,
+        attested_items: Optional[list[dict]] = None,
+    ) -> list[dict]:
+        if plan_items is None:
+            plan_items = self.parse_plan_items()
+        if attested_items is None:
+            attested_items = self.parse_attested_items()
 
         attested_names = {
-            self._clean(item["discipline_name"]).lower()
+            item["discipline_name"].lower()
             for item in attested_items
             if item.get("discipline_name")
         }
 
-        debts = []
-        for item in plan_items:
-            name = self._clean(item["discipline_name"])
-            if not name:
-                continue
-
-            if name.lower() in attested_names:
-                continue
-
-            debts.append({
-                "name": name,
+        return [
+            {
+                "name": item["discipline_name"],
                 "remaining_credits": item["credits"],
                 "remaining_hours": item["hours"],
-                "control_form": item.get("control_form", "Не указано"),
+                "control_form": item["control_form"],
                 "deadline": None,
-            })
+            }
+            for item in plan_items
+            if item["discipline_name"].lower() not in attested_names
+        ]
 
-        return debts
 
+# ─── Loader ──────────────────────────────────────────────────────────────────
 
 class ExcelDataLoader:
-    def __init__(self, db_session):
+    def __init__(self, db_session: Session) -> None:
         self.db = db_session
 
-    def save_to_database(self, file_path: str, student_id: int = None):
-        from models import Student, Debt, AttestationItem, IndividualPlanItem
-
+    def save_to_database(self, file_path: str, student_id: Optional[int] = None) -> dict:
         try:
             parser = ExcelParser(file_path)
             student_info = parser.parse_student_info()
-
             card = student_info["student_card_number"]
 
-            db_student = None
-            if student_id:
-                db_student = self.db.query(Student).filter(Student.id == student_id).first()
+            db_student: Optional[models.Student] = None
+            if student_id is not None:
+                db_student = self.db.query(models.Student).filter(models.Student.id == student_id).first()
+            if db_student is None:
+                db_student = self.db.query(models.Student).filter(models.Student.student_card_number == card).first()
 
-            if not db_student:
-                db_student = self.db.query(Student).filter(
-                    Student.student_card_number == card
-                ).first()
-
-            if db_student:
-                db_student.full_name = student_info["full_name"]
-                db_student.group_name = student_info["group_name"]
-                db_student.course = student_info["course"]
-                db_student.program_name = student_info["program_name"]
-                db_student.specialization = student_info["specialization"]
+            if db_student is not None:
+                for field, value in student_info.items():
+                    setattr(db_student, field, value)
                 db_student.status = "active"
             else:
-                db_student = Student(
-                    full_name=student_info["full_name"],
-                    student_card_number=card,
-                    group_name=student_info["group_name"],
-                    course=student_info["course"],
-                    program_name=student_info["program_name"],
-                    specialization=student_info["specialization"],
-                    status="active",
-                )
+                db_student = models.Student(**student_info, status="active")
                 self.db.add(db_student)
                 self.db.flush()
 
-            new_student_id = db_student.id
+            sid = db_student.id
 
-            # Очищаем старые данные этого студента
-            self.db.query(IndividualPlanItem).filter(
-                IndividualPlanItem.student_id == new_student_id
-            ).delete(synchronize_session=False)
+            # Replace all dependent data atomically
+            self.db.query(models.IndividualPlanItem).filter(models.IndividualPlanItem.student_id == sid).delete(synchronize_session=False)
+            self.db.query(models.AttestationItem).filter(models.AttestationItem.student_id == sid).delete(synchronize_session=False)
+            self.db.query(models.Debt).filter(models.Debt.student_id == sid).delete(synchronize_session=False)
 
-            self.db.query(AttestationItem).filter(
-                AttestationItem.student_id == new_student_id
-            ).delete(synchronize_session=False)
-
-            self.db.query(Debt).filter(
-                Debt.student_id == new_student_id
-            ).delete(synchronize_session=False)
-
-            # Переаттестации
             attested_items = parser.parse_attested_items()
+            plan_items     = parser.parse_plan_items()
+            debts          = parser.parse_debts(plan_items=plan_items, attested_items=attested_items)
+
             for item in attested_items:
-                self.db.add(
-                    AttestationItem(
-                        student_id=new_student_id,
-                        discipline_name=item["discipline_name"],
-                        credits=item["credits"],
-                        control_form=item["control_form"],
-                        result=item["result"],
-                        attestation_type=item["attestation_type"],
-                    )
-                )
+                self.db.add(models.AttestationItem(
+                    student_id=sid,
+                    discipline_name=item["discipline_name"],
+                    credits=item["credits"],
+                    control_form=item["control_form"],
+                    result=item["result"],
+                    attestation_type=item["attestation_type"],
+                ))
 
-            # Долги
-            debts = parser.parse_debts()
-            created_debts = []
-
+            created_debts: list[models.Debt] = []
             for item in debts:
-                debt = Debt(
-                    student_id=new_student_id,
+                debt = models.Debt(
+                    student_id=sid,
                     discipline_name=item["name"],
                     hours_remaining=item["remaining_hours"],
                     credits_remaining=item["remaining_credits"],
-                    reassessment_deadline=item.get("deadline"),
+                    reassessment_deadline=item["deadline"],
                     status="active",
                 )
                 self.db.add(debt)
                 self.db.flush()
                 created_debts.append(debt)
 
-            # Индивидуальный план
             for idx, item in enumerate(debts):
-                linked_debt_id = created_debts[idx].id if idx < len(created_debts) else None
-                self.db.add(
-                    IndividualPlanItem(
-                        student_id=new_student_id,
-                        debt_id=linked_debt_id,
-                        discipline_name=item["name"],
-                        hours=item["remaining_hours"],
-                        credits=item["remaining_credits"],
-                        control_form=item.get("control_form", "Не указано"),
-                        deadline=item.get("deadline"),
-                    )
-                )
+                self.db.add(models.IndividualPlanItem(
+                    student_id=sid,
+                    debt_id=created_debts[idx].id,
+                    discipline_name=item["name"],
+                    hours=item["remaining_hours"],
+                    credits=item["remaining_credits"],
+                    control_form=item["control_form"],
+                    deadline=item["deadline"],
+                ))
 
             self.db.commit()
 
             return {
                 "success": True,
-                "student_id": new_student_id,
-                "plan_id": None,
-                "student_info": student_info,
+                "student_id": sid,
                 "disciplines_count": len(attested_items),
                 "debts_count": len(debts),
                 "plan_items_count": len(debts),
-                "errors": [],
             }
 
-        except Exception as e:
+        except Exception as exc:
             self.db.rollback()
-            return {
-                "success": False,
-                "student_id": None,
-                "plan_id": None,
-                "student_info": None,
-                "disciplines_count": 0,
-                "debts_count": 0,
-                "plan_items_count": 0,
-                "errors": [str(e)],
-            }
+            return {"success": False, "student_id": None, "error": str(exc)}
